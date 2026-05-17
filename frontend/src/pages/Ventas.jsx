@@ -1,14 +1,39 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useReducer } from 'react'
 
 const API = import.meta.env.VITE_API_URL
 const OPT = { credentials: 'include' }
+
+// ── Reducer para el carrito de detalle ───────────────────
+const detalleInicial = [{ id_producto: '', cantidad: '', precio_unitario: '' }]
+
+function detalleReducer(state, action) {
+  switch (action.type) {
+    case 'AGREGAR_LINEA':
+      return [...state, { id_producto: '', cantidad: '', precio_unitario: '' }]
+    case 'ELIMINAR_LINEA':
+      return state.filter((_, idx) => idx !== action.index)
+    case 'CAMBIAR_CAMPO': {
+      const nuevo = state.map((item, idx) =>
+        idx === action.index ? { ...item, [action.campo]: action.valor } : item
+      )
+      if (action.campo === 'id_producto' && action.precioAuto !== undefined) {
+        nuevo[action.index].precio_unitario = action.precioAuto
+      }
+      return nuevo
+    }
+    case 'RESETEAR':
+      return detalleInicial
+    default:
+      return state
+  }
+}
 
 export default function Ventas() {
   const [ventas,    setVentas]    = useState([])
   const [clientes,  setClientes]  = useState([])
   const [empleados, setEmpleados] = useState([])
   const [productos, setProductos] = useState([])
-  const [detalle, setDetalle] = useState([{ id_producto: '', cantidad: '', precio_unitario: '' }])
+  const [detalle, dispatch] = useReducer(detalleReducer, detalleInicial)
   const [form, setForm] = useState({ id_cliente: '', id_empleado: '' })
   const [error,   setError]   = useState('')
   const [mensaje, setMensaje] = useState('')
@@ -29,31 +54,27 @@ export default function Ventas() {
     fetch(`${API}/productos`, OPT).then(r => r.json()).then(setProductos)
   }, [cargarVentas])
 
-  // useMemo: estadísticas derivadas
   const stats = useMemo(() => ({
     totalVentas: ventas.length,
     totalClientes: clientes.length,
     totalEmpleados: empleados.length,
   }), [ventas, clientes, empleados])
 
-  // useMemo: subtotal del detalle de venta seleccionada
   const subtotalDetalle = useMemo(() => {
     if (!detalleVenta) return 0
     return detalleVenta.reduce((s, d) => s + Number(d.subtotal), 0)
   }, [detalleVenta])
 
-  const agregarLinea  = () => setDetalle([...detalle, { id_producto: '', cantidad: '', precio_unitario: '' }])
-  const eliminarLinea = useCallback((i) => setDetalle(prev => prev.filter((_, idx) => idx !== i)), [])
-
   const handleDetalleChange = useCallback((i, campo, valor) => {
-    setDetalle(prev => {
-      const nuevo = [...prev]
-      nuevo[i] = { ...nuevo[i], [campo]: valor }
-      if (campo === 'id_producto') {
-        const prod = productos.find(p => p.id_producto === parseInt(valor))
-        if (prod) nuevo[i].precio_unitario = prod.precio
-      }
-      return nuevo
+    const prod = campo === 'id_producto'
+      ? productos.find(p => p.id_producto === parseInt(valor))
+      : undefined
+    dispatch({
+      type: 'CAMBIAR_CAMPO',
+      index: i,
+      campo,
+      valor,
+      precioAuto: prod ? prod.precio : undefined,
     })
   }, [productos])
 
@@ -72,7 +93,7 @@ export default function Ventas() {
     if (!res.ok) { setError(data.error); return }
     setMensaje(`Venta #${data.id_venta} registrada correctamente`)
     setForm({ id_cliente: '', id_empleado: '' })
-    setDetalle([{ id_producto: '', cantidad: '', precio_unitario: '' }])
+    dispatch({ type: 'RESETEAR' })
     cargarVentas()
   }
 
@@ -124,12 +145,14 @@ export default function Ventas() {
             </select>
             <input placeholder="Cantidad" type="number" min="1" value={d.cantidad} style={{ maxWidth: 100 }} onChange={e => handleDetalleChange(i, 'cantidad', e.target.value)} />
             <input placeholder="Precio unit." type="number" value={d.precio_unitario} style={{ maxWidth: 120 }} onChange={e => handleDetalleChange(i, 'precio_unitario', e.target.value)} />
-            {detalle.length > 1 && <button className="btn btn-sm btn-delete" onClick={() => eliminarLinea(i)}>✕</button>}
+            {detalle.length > 1 && (
+              <button className="btn btn-sm btn-delete" onClick={() => dispatch({ type: 'ELIMINAR_LINEA', index: i })}>✕</button>
+            )}
           </div>
         ))}
 
         <div className="form-row" style={{ marginTop: 14 }}>
-          <button className="btn btn-ghost" onClick={agregarLinea}>+ Agregar producto</button>
+          <button className="btn btn-ghost" onClick={() => dispatch({ type: 'AGREGAR_LINEA' })}>+ Agregar producto</button>
           <button className="btn btn-primary" onClick={handleSubmit}>Registrar venta</button>
         </div>
       </div>

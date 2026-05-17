@@ -1,6 +1,6 @@
 # 🛒 Proyecto 2 — Sistema de Gestión de Tienda
 
-Aplicación web fullstack para gestionar inventario, clientes y ventas de una tienda. Desarrollada para el curso **cc3088 - Bases de Datos 1**, Universidad del Valle de Guatemala, Ciclo 1 2026.
+Aplicación web fullstack para gestionar inventario, clientes y ventas de una tienda. Desarrollada para el curso **cc3062 - Sistemas y Tecnologías Web**, Universidad del Valle de Guatemala, Ciclo 1 2026.
 
 ---
 
@@ -30,8 +30,9 @@ Aplicación web fullstack para gestionar inventario, clientes y ventas de una ti
 git clone <url-del-repo>
 cd proyecto2
 
-# 2. Crear el archivo de variables de entorno
+# 2. Crear los archivos de variables de entorno
 cp .env.example .env
+cp frontend/.env.example frontend/.env
 
 # 3. Levantar toda la infraestructura
 docker compose up --build
@@ -66,9 +67,73 @@ La base de datos se inicializa automáticamente con tablas y datos de prueba al 
 
 ---
 
+## Documentación de la API REST
+
+Todos los endpoints requieren sesión activa (cookie de sesión) excepto los de autenticación.
+Base URL: `http://localhost:3001/api`
+
+### Autenticación
+
+| Método | Endpoint | Body | Respuesta |
+|--------|----------|------|-----------|
+| POST | `/auth/login` | `{ "usuario": "admin", "password": "admin123" }` | `{ "mensaje": "Login exitoso", "usuario": { "id", "usuario", "nombre" } }` |
+| POST | `/auth/logout` | — | `{ "mensaje": "Sesión cerrada" }` |
+| GET | `/auth/me` | — | `{ "usuario": { "id", "usuario", "nombre" } }` o `401` |
+
+### Productos
+
+| Método | Endpoint | Body | Respuesta |
+|--------|----------|------|-----------|
+| GET | `/productos` | — | Lista de productos con categoría y proveedor (JOIN) |
+| GET | `/productos/bajo-stock` | — | Productos con stock menor al promedio (Subquery) |
+| GET | `/productos/categorias` | — | Lista de categorías |
+| GET | `/productos/proveedores` | — | Lista de proveedores |
+| POST | `/productos` | `{ "nombre", "precio", "stock", "id_categoria", "id_proveedor" }` | Producto creado `201` |
+| PUT | `/productos/:id` | `{ "nombre", "precio", "stock", "id_categoria", "id_proveedor" }` | Producto actualizado |
+| DELETE | `/productos/:id` | — | `{ "mensaje": "Producto eliminado" }` |
+
+### Clientes
+
+| Método | Endpoint | Body | Respuesta |
+|--------|----------|------|-----------|
+| GET | `/clientes` | — | Lista de todos los clientes |
+| GET | `/clientes/con-ventas` | — | Clientes con al menos una venta (Subquery IN) |
+| POST | `/clientes` | `{ "nombre", "correo" }` | Cliente creado `201` |
+| PUT | `/clientes/:id` | `{ "nombre", "correo" }` | Cliente actualizado |
+| DELETE | `/clientes/:id` | — | `{ "mensaje": "Cliente eliminado" }` |
+
+### Ventas
+
+| Método | Endpoint | Body | Respuesta |
+|--------|----------|------|-----------|
+| GET | `/ventas` | — | Lista de ventas con cliente y empleado (JOIN) |
+| GET | `/ventas/empleados` | — | Lista de empleados |
+| GET | `/ventas/:id/detalle` | — | Detalle de una venta con productos (JOIN) |
+| POST | `/ventas` | `{ "id_cliente", "id_empleado", "detalle": [{ "id_producto", "cantidad", "precio_unitario" }] }` | `{ "mensaje": "Venta registrada", "id_venta" }` — con transacción explícita y descuento de stock |
+
+### Reportes
+
+| Método | Endpoint | Body | Respuesta |
+|--------|----------|------|-----------|
+| GET | `/reportes/ventas-totales` | — | Total por venta usando VIEW `reporte_ventas` |
+| GET | `/reportes/cte-ventas` | — | Ventas totales por cliente ordenadas por monto (CTE WITH) |
+| GET | `/reportes/clientes-frecuentes` | — | Clientes con más de 1 venta (GROUP BY + HAVING) |
+
+### Códigos de error
+
+| Código | Significado |
+|--------|-------------|
+| 400 | Datos inválidos o stock insuficiente |
+| 401 | No autenticado |
+| 404 | Recurso no encontrado |
+| 500 | Error interno del servidor |
+
+Todos los errores retornan `{ "error": "descripción del error" }`.
+
+---
+
 ## Estructura del proyecto
 
-```
 proyecto2/
 ├── docker-compose.yml
 ├── .env.example
@@ -88,19 +153,19 @@ proyecto2/
 │           ├── ventas.js    # CRUD + JOIN + Transacción
 │           └── reportes.js  # VIEW + CTE + GROUP BY/HAVING
 └── frontend/
-    ├── Dockerfile
-    ├── package.json
-    └── src/
-        ├── App.jsx          # AuthContext + rutas protegidas
-        ├── main.jsx
-        ├── index.css        # Tema oscuro/claro con CSS variables
-        └── pages/
-            ├── Login.jsx
-            ├── Productos.jsx
-            ├── Clientes.jsx
-            ├── Ventas.jsx
-            └── Reportes.jsx
-```
+├── Dockerfile
+├── .env.example
+├── package.json
+└── src/
+├── App.jsx          # AuthContext + rutas protegidas
+├── main.jsx
+├── index.css        # Tema oscuro/claro con CSS variables
+└── pages/
+├── Login.jsx
+├── Productos.jsx
+├── Clientes.jsx
+├── Ventas.jsx
+└── Reportes.jsx
 
 ---
 
@@ -110,12 +175,12 @@ proyecto2/
 - **Productos**: crear, editar, eliminar — con categoría y proveedor
 - **Clientes**: crear, editar, eliminar
 
-### SQL visible en la UI
+### Técnicas SQL visibles en la UI
 | Técnica | Dónde se usa |
 |---------|-------------|
 | JOIN (3) | Productos con categoría/proveedor · Ventas con cliente/empleado · Detalle de venta con productos |
 | Subquery IN | Clientes con ventas registradas |
-| Subquery en FROM | Productos con stock menor al promedio |
+| Subquery en WHERE | Productos con stock menor al promedio |
 | GROUP BY + HAVING | Clientes frecuentes (más de 1 venta) |
 | CTE — WITH | Ventas totales por cliente ordenadas por monto |
 | VIEW | `reporte_ventas` — total por venta |
@@ -125,12 +190,6 @@ proyecto2/
 - **Autenticación**: login/logout con sesión persistida en PostgreSQL (`express-session` + `connect-pg-simple`)
 - **Exportar CSV**: botón en cada reporte (ventas, clientes frecuentes, bajo stock)
 - **Modo oscuro / claro**: toggle en el nav, preferencia guardada en `localStorage`
-
-### Otras características
-- Mensajes de error y éxito visibles al usuario en todas las operaciones
-- Estadísticas en tiempo real por página (stat cards)
-- Badges de color para identificar técnicas SQL usadas
-- Alertas de stock bajo destacadas en rojo
 
 ---
 
@@ -146,8 +205,9 @@ docker compose down -v
 
 ---
 
-## Variables de entorno (.env.example)
+## Variables de entorno
 
+### `.env` (raíz)
 ```env
 DB_USER=proy2
 DB_PASSWORD=secret
@@ -155,4 +215,9 @@ DB_NAME=tienda
 DB_HOST=db
 DB_PORT=5432
 PORT=3001
+```
+
+### `frontend/.env`
+```env
+VITE_API_URL=http://localhost:3001/api
 ```

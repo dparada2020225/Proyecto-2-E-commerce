@@ -1,33 +1,44 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 
 const API = import.meta.env.VITE_API_URL
 const OPT = { credentials: 'include' }
 
 export default function Productos() {
-  const [productos,  setProductos]  = useState([])
-  const [categorias, setCategorias] = useState([])
-  const [proveedores,setProveedores]= useState([])
+  const [productos,   setProductos]  = useState([])
+  const [categorias,  setCategorias] = useState([])
+  const [proveedores, setProveedores]= useState([])
   const [form, setForm] = useState({ nombre: '', precio: '', stock: '', id_categoria: '', id_proveedor: '' })
   const [editId,  setEditId]  = useState(null)
   const [error,   setError]   = useState('')
   const [mensaje, setMensaje] = useState('')
 
+  const cargarProductos = useCallback(() => {
+    fetch(`${API}/productos`, OPT)
+      .then(r => r.json())
+      .then(setProductos)
+      .catch(() => setError('Error al cargar productos'))
+  }, [])
+
   useEffect(() => {
     cargarProductos()
     fetch(`${API}/productos/categorias`, OPT).then(r => r.json()).then(setCategorias)
     fetch(`${API}/productos/proveedores`, OPT).then(r => r.json()).then(setProveedores)
-  }, [])
+  }, [cargarProductos])
 
-  const cargarProductos = () => {
-    fetch(`${API}/productos`, OPT).then(r => r.json()).then(setProductos)
-      .catch(() => setError('Error al cargar productos'))
-  }
+  // useMemo: estadísticas derivadas del listado de productos
+  const stats = useMemo(() => ({
+    total: productos.length,
+    stockBajo: productos.filter(p => p.stock < 10).length,
+    unidadesTotales: productos.reduce((s, p) => s + Number(p.stock), 0),
+  }), [productos])
 
   const handleSubmit = async () => {
     setError(''); setMensaje('')
     if (!form.nombre || !form.precio || !form.stock || !form.id_categoria || !form.id_proveedor) {
       setError('Todos los campos son obligatorios'); return
     }
+    if (Number(form.precio) <= 0) { setError('El precio debe ser mayor a 0'); return }
+    if (Number(form.stock) < 0)   { setError('El stock no puede ser negativo'); return }
     const url    = editId ? `${API}/productos/${editId}` : `${API}/productos`
     const method = editId ? 'PUT' : 'POST'
     const res  = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(form) })
@@ -39,22 +50,26 @@ export default function Productos() {
     cargarProductos()
   }
 
-  const handleEditar = (p) => {
+  const handleEditar = useCallback((p) => {
     setEditId(p.id_producto)
     setForm({ nombre: p.nombre, precio: p.precio, stock: p.stock, id_categoria: p.id_categoria, id_proveedor: p.id_proveedor })
     setError(''); setMensaje('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+  }, [])
 
-  const handleEliminar = async (id) => {
+  const handleEliminar = useCallback(async (id) => {
     if (!window.confirm('¿Eliminar este producto?')) return
     const res  = await fetch(`${API}/productos/${id}`, { method: 'DELETE', ...OPT })
     const data = await res.json()
     if (!res.ok) { setError(data.error); return }
     setMensaje('Producto eliminado'); cargarProductos()
-  }
+  }, [cargarProductos])
 
-  const cancelar = () => { setEditId(null); setForm({ nombre: '', precio: '', stock: '', id_categoria: '', id_proveedor: '' }); setError(''); setMensaje('') }
+  const cancelar = () => {
+    setEditId(null)
+    setForm({ nombre: '', precio: '', stock: '', id_categoria: '', id_proveedor: '' })
+    setError(''); setMensaje('')
+  }
 
   return (
     <div className="animate-in">
@@ -64,10 +79,10 @@ export default function Productos() {
       </div>
 
       <div className="stats-row">
-        <div className="stat-card"><div className="stat-value">{productos.length}</div><div className="stat-label">Total productos</div></div>
+        <div className="stat-card"><div className="stat-value">{stats.total}</div><div className="stat-label">Total productos</div></div>
         <div className="stat-card"><div className="stat-value">{categorias.length}</div><div className="stat-label">Categorías</div></div>
-        <div className="stat-card"><div className="stat-value">{productos.filter(p => p.stock < 10).length}</div><div className="stat-label">Stock bajo</div></div>
-        <div className="stat-card"><div className="stat-value">{productos.reduce((s, p) => s + Number(p.stock), 0)}</div><div className="stat-label">Unidades totales</div></div>
+        <div className="stat-card"><div className="stat-value">{stats.stockBajo}</div><div className="stat-label">Stock bajo</div></div>
+        <div className="stat-card"><div className="stat-value">{stats.unidadesTotales}</div><div className="stat-label">Unidades totales</div></div>
       </div>
 
       {error   && <div className="alert alert-error">⚠ {error}</div>}
@@ -77,8 +92,8 @@ export default function Productos() {
         <div className="card-title">{editId ? '✏ Editar producto' : '＋ Nuevo producto'}</div>
         <div className="form-row">
           <input placeholder="Nombre del producto" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} />
-          <input placeholder="Precio (Q)" type="number" value={form.precio} onChange={e => setForm({ ...form, precio: e.target.value })} style={{ maxWidth: 130 }} />
-          <input placeholder="Stock" type="number" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} style={{ maxWidth: 110 }} />
+          <input placeholder="Precio (Q)" type="number" min="0.01" step="0.01" value={form.precio} onChange={e => setForm({ ...form, precio: e.target.value })} style={{ maxWidth: 130 }} />
+          <input placeholder="Stock" type="number" min="0" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} style={{ maxWidth: 110 }} />
           <select value={form.id_categoria} onChange={e => setForm({ ...form, id_categoria: e.target.value })}>
             <option value="">-- Categoría --</option>
             {categorias.map(c => <option key={c.id_categoria} value={c.id_categoria}>{c.nombre}</option>)}

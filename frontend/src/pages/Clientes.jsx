@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 
 const API = import.meta.env.VITE_API_URL
 const OPT = { credentials: 'include' }
@@ -11,19 +11,34 @@ export default function Clientes() {
   const [error,   setError]   = useState('')
   const [mensaje, setMensaje] = useState('')
 
-  useEffect(() => {
-    cargarClientes()
+  const cargarClientes = useCallback(() => {
+    fetch(`${API}/clientes`, OPT)
+      .then(r => r.json())
+      .then(setClientes)
+      .catch(() => setError('Error al cargar clientes'))
+  }, [])
+
+  const cargarConVentas = useCallback(() => {
     fetch(`${API}/clientes/con-ventas`, OPT).then(r => r.json()).then(setConVentas)
   }, [])
 
-  const cargarClientes = () => {
-    fetch(`${API}/clientes`, OPT).then(r => r.json()).then(setClientes)
-      .catch(() => setError('Error al cargar clientes'))
-  }
+  useEffect(() => {
+    cargarClientes()
+    cargarConVentas()
+  }, [cargarClientes, cargarConVentas])
+
+  // useMemo: estadísticas derivadas
+  const stats = useMemo(() => ({
+    total: clientes.length,
+    conCompras: conVentas.length,
+    sinCompras: clientes.length - conVentas.length,
+  }), [clientes, conVentas])
 
   const handleSubmit = async () => {
     setError(''); setMensaje('')
-    if (!form.nombre || !form.correo) { setError('Nombre y correo son obligatorios'); return }
+    if (!form.nombre.trim()) { setError('El nombre es obligatorio'); return }
+    if (!form.correo.trim()) { setError('El correo es obligatorio'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) { setError('El correo no tiene un formato válido'); return }
     const url    = editId ? `${API}/clientes/${editId}` : `${API}/clientes`
     const method = editId ? 'PUT' : 'POST'
     const res  = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(form) })
@@ -31,22 +46,21 @@ export default function Clientes() {
     if (!res.ok) { setError(data.error); return }
     setMensaje(editId ? 'Cliente actualizado' : 'Cliente creado')
     setForm({ nombre: '', correo: '' }); setEditId(null)
-    cargarClientes()
-    fetch(`${API}/clientes/con-ventas`, OPT).then(r => r.json()).then(setConVentas)
+    cargarClientes(); cargarConVentas()
   }
 
-  const handleEditar = (c) => {
+  const handleEditar = useCallback((c) => {
     setEditId(c.id_cliente); setForm({ nombre: c.nombre, correo: c.correo })
     setError(''); setMensaje(''); window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+  }, [])
 
-  const handleEliminar = async (id) => {
+  const handleEliminar = useCallback(async (id) => {
     if (!window.confirm('¿Eliminar este cliente?')) return
     const res  = await fetch(`${API}/clientes/${id}`, { method: 'DELETE', ...OPT })
     const data = await res.json()
     if (!res.ok) { setError(data.error); return }
-    setMensaje('Cliente eliminado'); cargarClientes()
-  }
+    setMensaje('Cliente eliminado'); cargarClientes(); cargarConVentas()
+  }, [cargarClientes, cargarConVentas])
 
   const cancelar = () => { setEditId(null); setForm({ nombre: '', correo: '' }); setError(''); setMensaje('') }
 
@@ -58,9 +72,9 @@ export default function Clientes() {
       </div>
 
       <div className="stats-row">
-        <div className="stat-card"><div className="stat-value">{clientes.length}</div><div className="stat-label">Total clientes</div></div>
-        <div className="stat-card"><div className="stat-value">{conVentas.length}</div><div className="stat-label">Con compras</div></div>
-        <div className="stat-card"><div className="stat-value">{clientes.length - conVentas.length}</div><div className="stat-label">Sin compras</div></div>
+        <div className="stat-card"><div className="stat-value">{stats.total}</div><div className="stat-label">Total clientes</div></div>
+        <div className="stat-card"><div className="stat-value">{stats.conCompras}</div><div className="stat-label">Con compras</div></div>
+        <div className="stat-card"><div className="stat-value">{stats.sinCompras}</div><div className="stat-label">Sin compras</div></div>
       </div>
 
       {error   && <div className="alert alert-error">⚠ {error}</div>}
@@ -70,7 +84,7 @@ export default function Clientes() {
         <div className="card-title">{editId ? '✏ Editar cliente' : '＋ Nuevo cliente'}</div>
         <div className="form-row">
           <input placeholder="Nombre completo" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} style={{ minWidth: 200 }} />
-          <input placeholder="Correo electrónico" value={form.correo} onChange={e => setForm({ ...form, correo: e.target.value })} style={{ minWidth: 220 }} />
+          <input placeholder="Correo electrónico" type="email" value={form.correo} onChange={e => setForm({ ...form, correo: e.target.value })} style={{ minWidth: 220 }} />
           <button className="btn btn-primary" onClick={handleSubmit}>{editId ? 'Actualizar' : 'Crear cliente'}</button>
           {editId && <button className="btn btn-ghost" onClick={cancelar}>Cancelar</button>}
         </div>

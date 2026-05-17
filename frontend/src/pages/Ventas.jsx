@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 
 const API = import.meta.env.VITE_API_URL
 const OPT = { credentials: 'include' }
@@ -12,39 +12,62 @@ export default function Ventas() {
   const [form, setForm] = useState({ id_cliente: '', id_empleado: '' })
   const [error,   setError]   = useState('')
   const [mensaje, setMensaje] = useState('')
-  const [detalleVenta,     setDetalleVenta]     = useState(null)
-  const [ventaSeleccionada,setVentaSeleccionada]= useState(null)
+  const [detalleVenta,      setDetalleVenta]      = useState(null)
+  const [ventaSeleccionada, setVentaSeleccionada] = useState(null)
+
+  const cargarVentas = useCallback(() => {
+    fetch(`${API}/ventas`, OPT)
+      .then(r => r.json())
+      .then(setVentas)
+      .catch(() => setError('Error al cargar ventas'))
+  }, [])
 
   useEffect(() => {
     cargarVentas()
     fetch(`${API}/clientes`, OPT).then(r => r.json()).then(setClientes)
     fetch(`${API}/ventas/empleados`, OPT).then(r => r.json()).then(setEmpleados)
     fetch(`${API}/productos`, OPT).then(r => r.json()).then(setProductos)
-  }, [])
+  }, [cargarVentas])
 
-  const cargarVentas = () => {
-    fetch(`${API}/ventas`, OPT).then(r => r.json()).then(setVentas)
-      .catch(() => setError('Error al cargar ventas'))
-  }
+  // useMemo: estadísticas derivadas
+  const stats = useMemo(() => ({
+    totalVentas: ventas.length,
+    totalClientes: clientes.length,
+    totalEmpleados: empleados.length,
+  }), [ventas, clientes, empleados])
+
+  // useMemo: subtotal del detalle de venta seleccionada
+  const subtotalDetalle = useMemo(() => {
+    if (!detalleVenta) return 0
+    return detalleVenta.reduce((s, d) => s + Number(d.subtotal), 0)
+  }, [detalleVenta])
 
   const agregarLinea  = () => setDetalle([...detalle, { id_producto: '', cantidad: '', precio_unitario: '' }])
-  const eliminarLinea = (i) => setDetalle(detalle.filter((_, idx) => idx !== i))
+  const eliminarLinea = useCallback((i) => setDetalle(prev => prev.filter((_, idx) => idx !== i)), [])
 
-  const handleDetalleChange = (i, campo, valor) => {
-    const nuevo = [...detalle]
-    nuevo[i][campo] = valor
-    if (campo === 'id_producto') {
-      const prod = productos.find(p => p.id_producto === parseInt(valor))
-      if (prod) nuevo[i].precio_unitario = prod.precio
-    }
-    setDetalle(nuevo)
-  }
+  const handleDetalleChange = useCallback((i, campo, valor) => {
+    setDetalle(prev => {
+      const nuevo = [...prev]
+      nuevo[i] = { ...nuevo[i], [campo]: valor }
+      if (campo === 'id_producto') {
+        const prod = productos.find(p => p.id_producto === parseInt(valor))
+        if (prod) nuevo[i].precio_unitario = prod.precio
+      }
+      return nuevo
+    })
+  }, [productos])
 
   const handleSubmit = async () => {
     setError(''); setMensaje('')
     if (!form.id_cliente || !form.id_empleado) { setError('Selecciona cliente y empleado'); return }
     if (detalle.some(d => !d.id_producto || !d.cantidad)) { setError('Completa todos los productos'); return }
-    const res  = await fetch(`${API}/ventas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ ...form, detalle }) })
+    if (detalle.some(d => Number(d.cantidad) <= 0)) { setError('La cantidad debe ser mayor a 0'); return }
+    const res  = await fetch(`${API}/ventas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ ...form, detalle })
+    })
     const data = await res.json()
     if (!res.ok) { setError(data.error); return }
     setMensaje(`Venta #${data.id_venta} registrada correctamente`)
@@ -53,14 +76,12 @@ export default function Ventas() {
     cargarVentas()
   }
 
-  const verDetalle = async (id) => {
+  const verDetalle = useCallback(async (id) => {
     setVentaSeleccionada(id)
     const res  = await fetch(`${API}/ventas/${id}/detalle`, OPT)
     const data = await res.json()
     setDetalleVenta(data)
-  }
-
-  const subtotalDetalle = detalleVenta ? detalleVenta.reduce((s, d) => s + Number(d.subtotal), 0) : 0
+  }, [])
 
   return (
     <div className="animate-in">
@@ -70,9 +91,9 @@ export default function Ventas() {
       </div>
 
       <div className="stats-row">
-        <div className="stat-card"><div className="stat-value">{ventas.length}</div><div className="stat-label">Total ventas</div></div>
-        <div className="stat-card"><div className="stat-value">{clientes.length}</div><div className="stat-label">Clientes</div></div>
-        <div className="stat-card"><div className="stat-value">{empleados.length}</div><div className="stat-label">Empleados</div></div>
+        <div className="stat-card"><div className="stat-value">{stats.totalVentas}</div><div className="stat-label">Total ventas</div></div>
+        <div className="stat-card"><div className="stat-value">{stats.totalClientes}</div><div className="stat-label">Clientes</div></div>
+        <div className="stat-card"><div className="stat-value">{stats.totalEmpleados}</div><div className="stat-label">Empleados</div></div>
       </div>
 
       {error   && <div className="alert alert-error">⚠ {error}</div>}
@@ -101,7 +122,7 @@ export default function Ventas() {
               <option value="">-- Producto --</option>
               {productos.map(p => <option key={p.id_producto} value={p.id_producto}>{p.nombre} (stock: {p.stock})</option>)}
             </select>
-            <input placeholder="Cantidad" type="number" value={d.cantidad} style={{ maxWidth: 100 }} onChange={e => handleDetalleChange(i, 'cantidad', e.target.value)} />
+            <input placeholder="Cantidad" type="number" min="1" value={d.cantidad} style={{ maxWidth: 100 }} onChange={e => handleDetalleChange(i, 'cantidad', e.target.value)} />
             <input placeholder="Precio unit." type="number" value={d.precio_unitario} style={{ maxWidth: 120 }} onChange={e => handleDetalleChange(i, 'precio_unitario', e.target.value)} />
             {detalle.length > 1 && <button className="btn btn-sm btn-delete" onClick={() => eliminarLinea(i)}>✕</button>}
           </div>

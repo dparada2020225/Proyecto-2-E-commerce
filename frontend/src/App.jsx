@@ -6,7 +6,7 @@ import Ventas    from './pages/Ventas'
 import Reportes  from './pages/Reportes'
 import Login     from './pages/Login'
 
-const API = 'http://localhost:3001/api'
+const API = import.meta.env.VITE_API_URL
 
 // ── Auth Context ──────────────────────────────────────────
 export const AuthContext = createContext(null)

@@ -495,3 +495,143 @@ tbody td {
   color: var(--text-muted);
   font-weight: 500;
 }
+
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  /* Nav */
+  nav {
+    padding: 0 16px;
+    flex-wrap: wrap;
+    height: auto;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    gap: 8px;
+  }
+
+  .nav-brand {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  nav a {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+
+  .nav-user {
+    margin-left: auto;
+    padding-left: 0;
+    border-left: none;
+  }
+
+  .theme-toggle {
+    margin-left: 4px;
+  }
+
+  /* Page */
+  .page {
+    padding: 20px 16px;
+  }
+
+  .page-title {
+    font-size: 22px;
+  }
+
+  /* Stats */
+  .stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
+
+  /* Forms */
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-row input,
+  .form-row select,
+  .form-row button {
+    width: 100%;
+    min-width: unset;
+    max-width: unset;
+  }
+
+  /* Tables — scroll horizontal en móvil */
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius);
+  }
+
+  .table-wrap table {
+    min-width: 480px;
+    width: max-content;
+  }
+
+  thead th {
+    white-space: nowrap;
+    font-size: 10px;
+    padding: 8px 10px;
+  }
+
+  tbody td {
+    font-size: 12px;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+
+  /* Cards */
+  .card {
+    padding: 16px;
+  }
+
+  /* Detail lines en ventas */
+  .detail-line {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .detail-line select,
+  .detail-line input {
+    width: 100%;
+    max-width: unset;
+  }
+
+  /* Report headers */
+  .report-section-header {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px 16px;
+  }
+
+  .report-section-header .btn {
+    width: 100%;
+    justify-content: center;
+    margin-left: 0 !important;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    padding: 14px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .page-title {
+    font-size: 20px;
+  }
+
+  nav a {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+}

@@ -28,7 +28,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
-
+app.set('trust proxy', 1)
 app.use(session({
   store: new pgSession({ pool, createTableIfMissing: true }),
   secret: process.env.SESSION_SECRET || 'tienda_secret_2026',

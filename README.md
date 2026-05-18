@@ -4,6 +4,16 @@ Aplicación web fullstack para gestionar inventario, clientes y ventas de una ti
 
 ---
 
+## 🌐 Demo en producción
+
+| | |
+|---|---|
+| **URL** | [https://proyecto-2-e-commerce-production-877c.up.railway.app](https://proyecto-2-e-commerce-production-877c.up.railway.app) |
+| **Usuario** | `admin` |
+| **Contraseña** | `admin123` |
+
+---
+
 ## Stack tecnológico
 
 | Capa | Tecnología |

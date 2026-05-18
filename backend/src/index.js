@@ -14,21 +14,26 @@ const app  = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({
-  origin: true,
+  origin: [
+    'http://localhost:5173',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean),
   credentials: true,
 }));
 app.use(express.json());
 
-// Sesión persistida en PostgreSQL
 app.use(session({
   store: new pgSession({ pool, createTableIfMissing: true }),
   secret: process.env.SESSION_SECRET || 'tienda_secret_2026',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 8 * 60 * 60 * 1000 }, // 8 horas
+  cookie: {
+    maxAge: 8 * 60 * 60 * 1000,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  },
 }));
 
-// Middleware para proteger rutas (excepto auth)
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/auth')) return next();
   if (!req.session.usuario) return res.status(401).json({ error: 'No autenticado' });
